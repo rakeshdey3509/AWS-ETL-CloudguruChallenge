@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: The CloudFormation template for AWS resources required by Lambda Runner.
+
+Parameters:
+
+  CloudguruIamRoleName:
+    Type: String
+    Default: "CloudguruChallenge"
+    Description: "Name of IAM Role for this challenge"
+
+  CloudguruLambdaFunctionName:
+    Type: String
+    Default: "CloudguruChallngeLambdaFunc"
+    Description: "Name of the Lambda function that transform couvid u.s data"
+
+
+Resources:
+
+  CloudguruLambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Ref CloudguruIamRoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+
+  CloudguruLambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyDocument: {
+        "Version": "2012-10-17",
+        "Statement": [{
+                        "Effect": "Allow",
+                        "Action": [
+                          "cloudwatch:*"
+                        ],
+                        "Resource":  "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:*"
+                        ],
+                        "Resource": "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": "sns:*",
+                        "Resource": "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": "s3:*",
+                        "Resource": "*"
+                      },
+                      {
+                            "Sid": "CloudWatchEventsFullAccess",
+                            "Effect": "Allow",
+                            "Action": "events:*",
+                            "Resource": "*"
+                      },
+                      {
+                            "Sid": "IAMPassRoleForCloudWatchEvents",
+                            "Effect": "Allow",
+                            "Action": "iam:PassRole",
+                            "Resource": "arn:aws:iam::*:role/AWS_Events_Invoke_Targets"
+                      }
+                      
+        ]
+      }
+      PolicyName: "CloudguruChallengePolicy"
+      Roles:
+        - !Ref CloudguruLambdaExecutionRole
+  PythonLayer:
+    Type: "AWS::Lambda::LayerVersion"
+    Properties:
+        CompatibleRuntimes:
+            - "python3.6"
+        Content:
+            S3Bucket: "lambda-package-cloud-guru"
+            S3Key: "psycopg_rqst_pandas_layer.zip"
+        Description: "Python dependency layer"
+        LayerName: "cloudguru-python-layer"
+        
+  CloudguruLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref CloudguruLambdaFunctionName
+      Description: "Process the covid data for US and load data in database"
+      Handler: "lambda_function.lambda_handler" 
+      Role: !GetAtt CloudguruLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: "lambda-package-cloud-guru"
+        S3Key: "cloudguru_covid_lambda.zip" 
+      Timeout: 600 #seconds
+      MemorySize: 256 #MB
+      Runtime: python3.6
+      Environment:
+        Variables:
+          config_bucket: "lambda-package-cloud-guru"
+          config_file: "cloudguru_config.json"
+          sns_topic : !Ref clouguruSnsTopic
+      Layers: 
+        - !Ref PythonLayer
+    DependsOn:
+      - CloudguruLambdaExecutionRole
+      - PythonLayer
+      - clouguruSnsTopic
+      
+  ScheduledRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Description: "ScheduledRule for Cloudguru challenge to trigger lambda on each day @8 am GMT"
+      ScheduleExpression: "cron(0 9 * * ? *)"
+      State: "ENABLED"
+      Targets:
+        -
+          Arn: !GetAtt CloudguruLambdaFunction.Arn
+          Id: "CloudguruChallengeLambda"
+ 
+  PermissionForEventsToInvokeLambda:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref CloudguruLambdaFunctionName
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt ScheduledRule.Arn
+      
+  clouguruSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: "rakeshdey.0018@gmail.com"
+        Protocol: email
+        TopicArn: !Ref clouguruSnsTopic
+      DependsOn:
+        - clouguruSnsTopic
+        
+  clouguruSnsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: "clouguru_covid_challenge"
