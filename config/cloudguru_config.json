@@ -1,0 +1,10 @@
+{
+    "host"      : "cloudguru-covid.xxxxxxxxx.us-east-1.rds.amazonaws.com",
+    "port"      : "5432",
+    "database"  : "covid_db",
+    "user"      : "rakesh",
+    "password"  : "**********",
+	"table"		: "us_table",
+	"api_url_nyt":"https://raw.githubusercontent.com/nytimes/covid-19-data/master/us.csv",
+	"api_url_hopkins":"https://raw.githubusercontent.com/datasets/covid-19/master/data/time-series-19-covid-combined.csv"
+}
