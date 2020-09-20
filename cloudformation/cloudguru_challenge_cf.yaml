@@ -118,7 +118,7 @@ Resources:
   ScheduledRule:
     Type: "AWS::Events::Rule"
     Properties:
-      Description: "ScheduledRule for Cloudguru challenge to trigger lambda on each day @8 am GMT"
+      Description: "ScheduledRule for Cloudguru challenge to trigger lambda on each day @9 am GMT"
       ScheduleExpression: "cron(0 9 * * ? *)"
       State: "ENABLED"
       Targets:
